@@ -20,9 +20,17 @@ input[type=search],input[type=password]{width:100%;font:inherit;padding:10px;bor
 .nm{margin:3px 0;color:var(--mu)}.ln{margin:3px 0}.ac{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.ac button{font-size:13px;padding:6px 10px}
 .g{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}.g button{padding:8px 0;font-size:14px;line-height:1.1}.g small{display:block;font-size:9px;color:var(--mu)}
 .g .oc{background:var(--wa);color:var(--wat)}.g .fr{background:var(--ok);color:var(--okt)}.g .sl{background:var(--pr);color:var(--prt)}.g button:disabled{opacity:.45}
+/* تنسيق أزرار الدوكات في شاشة الخطوط لتضمين علامة × وتغير اللون للبرتقالي */
+.dg{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.d-card{background:var(--cd);border:1px solid var(--bd);border-radius:10px;padding:10px;text-align:center;position:relative}
+.d-card.active{background:var(--wa);color:var(--wat);border-color:var(--wat)}
+.d-card .x-btn{position:absolute;top:5px;left:5px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .m{position:fixed;inset:0;background:#0007;z-index:20;display:flex;align-items:flex-end}.sh{background:var(--bg);width:100%;max-height:85%;overflow:auto;border-radius:16px 16px 0 0;padding:12px}
 h3{margin:10px 0 6px;font-size:15px}.em{text-align:center;color:var(--mu);padding:30px}.row{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}
 .rl{display:grid;gap:12px;padding:30px 20px;max-width:400px;margin:0 auto}.rl button{padding:16px;font-size:18px}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+th,td{border:1px solid var(--bd);padding:6px 8px;text-align:center}
+th{background:var(--gr)}
 </style></head><body>
 <div class="top"><div class="st" id="st"></div>
 <div class="tabs" id="tabs"></div>
@@ -53,7 +61,7 @@ const USERS = {
 };
 
 const $=s=>document.querySelector(s);
-let col,orders=[],tab='o',q='',fs='act',fa='all',pick=null,pend=null,msg='',wipe=false,loaded=false,pending=false,role=null,selRole=null,authErr='';
+let col, histCol, orders=[], historyLogs=[], tab='o', q='', fs='act', fa='all', pick=null, pend=null, msg='', wipe=false, loaded=false, pending=false, role=null, selRole=null, authErr='';
 try{
   const saved = localStorage.getItem('role');
   if(saved && USERS[saved]) role = saved;
@@ -66,6 +74,7 @@ const LS=()=>role==='M'?['A','B']:[role];
 function parseLines(s){const out=[];String(s||'').toUpperCase().replace(/(\d+(?:\s*\+\s*\d+)*)\s*([AB])/g,(m,n,l)=>{n.split('+').forEach(x=>out.push(parseInt(x,10)+l));return m});return out}
 function fmt(sel){const g={A:[],B:[]};sel.forEach(x=>g[x.slice(-1)].push(parseInt(x,10)));return['A','B'].filter(l=>g[l].length).map(l=>g[l].sort((a,b)=>a-b).join('+')+l).join(' + ')}
 function occ(){const m={};orders.forEach(o=>{if(o.status==='lined'||o.status==='ready')parseLines(o.line).forEach(l=>m[l]=o)});return m}
+function docksOcc(){const m={};orders.forEach(o=>{if(o.dock && o.status==='ready') m[o.dock]=o});return m}
 const byId=id=>orders.find(o=>o.id===id);
 const upd=(id,d)=>{const o=byId(id);if(o)Object.assign(o,d);col.doc(id).update(d).catch(()=>{msg='تعذّر الحفظ';render()});render()};
 const vis=o=>role==='M'||o.status==='new'||parseLines(o.line).some(l=>LS().some(x=>l.endsWith(x)))||(o.dock&&LS().includes(o.dock[0]));
@@ -98,11 +107,15 @@ function render(){
   const net=!navigator.onLine?'🔴 أوفلاين (الشغل محفوظ)':pending?'⏳ بيتزامن':'🟢 متصل';
   const roleLabel = {M:`المشرف: ${USERS.M.name}`, A:`لاين A: ${USERS.A.name}`, B:`لاين B: ${USERS.B.name}`}[role];
   $('#st').innerHTML=`<span>${net}</span><span><b>${roleLabel}</b></span><span>جديد ${n('new')}</span><span>متسكن ${n('lined')}</span><span>جاهز ${n('ready')}</span>`+LS().map(l=>`<span>${l} فاضي ${55-used(l)}</span>`).join('')+'<span data-a="logout" style="cursor:pointer;background:var(--wa);color:var(--wat)">خروج ⟲</span>';
-  $('#tabs').innerHTML=[['o','الأوردرات'],['l','الخطوط']].concat(role==='M'?[['u','رفع / إدارة']]:[]).map(([k,t])=>`<button data-t="${k}" class="${tab===k?'on':''}">${t}</button>`).join('');
+  
+  let tabsArr=[['o','الأوردرات'],['l','الخطوط']];
+  if(role==='M'){tabsArr.push(['u','رفع / إدارة']);tabsArr.push(['h','أرشيف الدوكات']);}
+  $('#tabs').innerHTML=tabsArr.map(([k,t])=>`<button data-t="${k}" class="${tab===k?'on':''}">${t}</button>`).join('');
+  
   $('#ctl').style.display=tab==='o'?'':'none';
   $('#fs').innerHTML=[['act','نشط'],['new','جديد'],['lined','متسكن'],['ready','جاهز'],['left','خرج'],['all','الكل']].map(([k,t])=>`<button data-fs="${k}" class="${fs===k?'on':''}">${t}</button>`).join('');
   $('#fa').innerHTML=role==='M'?[['all','كل اللاينات'],['A','A'],['B','B']].map(([k,t])=>`<button data-fa="${k}" class="${fa===k?'on':''}">${t}</button>`).join(''):'';
-  $('#main').innerHTML=(msg?`<div class="c">${esc(msg)}</div>`:'')+(!loaded?'<div class="em">جاري التحميل…</div>':tab==='o'?viewO():tab==='l'?viewL(oc):viewU());
+  $('#main').innerHTML=(msg?`<div class="c">${esc(msg)}</div>`:'')+(!loaded?'<div class="em">جاري التحميل…</div>':tab==='o'?viewO():tab==='l'?viewL(oc):tab==='u'?viewU():viewH());
   $('#md').innerHTML=pick?modal(oc):'';
 }
 function viewO(){
@@ -123,14 +136,43 @@ function card(o){
   return`<div class="c s-${o.status}"><div class="r1"><b>${esc(o.st)}</b><span class="bd">${ST[o.status]}</span>${o.cont?'<span class="bd" style="background:var(--wa);color:var(--wat)">استكمال</span>':''}${dup>1?`<span class="bd">×${dup}</span>`:''}</div><div class="nm">${esc(o.store)}</div>${o.line?`<div class="ln">لاين: <b>${esc(o.line)}</b>${o.dock?` · دوك: <b>${esc(o.dock)}</b>`:''}</div>`:''}<div class="ac">${a}</div></div>`;
 }
 function viewL(oc){
-  return LS().map(l=>{let h=`<h3>لاينات ${l}</h3><div class="g">`;
+  const docOcc = docksOcc();
+  return LS().map(l=>{
+    let h=`<h3>لاينات ${l}</h3><div class="g">`;
     for(let i=1;i<=55;i++){const o=oc[i+l];h+=o?`<button class="oc" data-go="${esc(o.st)}">${i}<small>${esc(o.st.slice(-3))}</small></button>`:`<button class="fr" disabled>${i}</button>`}
-    return h+'</div>'}).join('');
+    h+=`</div><h3 style="margin-top:15px">دوكات ${l}</h3><div class="dg">`;
+    for(let i=1;i<=10;i++){
+      const dkName = l+i;
+      const assignedOrd = docOcc[dkName];
+      if(assignedOrd){
+        h+=`<div class="d-card active">
+          <button class="x-btn" data-cleardock="${assignedOrd.id}" title="إفراغ الدوك">×</button>
+          <b>دوك ${dkName}</b>
+          <div style="font-size:16px;margin-top:4px;font-weight:bold;color:var(--wat)">${esc(assignedOrd.st.slice(-3))}</div>
+          <div style="font-size:11px;color:var(--mu)">${esc(assignedOrd.store)}</div>
+        </div>`;
+      } else {
+        h+=`<div class="d-card">
+          <b>دوك ${dkName}</b>
+          <div style="font-size:12px;color:var(--mu);margin-top:4px">فاضي</div>
+        </div>`;
+      }
+    }
+    return h+'</div>';
+  }).join('');
 }
 function viewU(){
   return`<div class="c"><b>رفع إكسل جديد</b><div class="row"><input type="file" id="f" accept=".xlsx,.xls,.csv"></div>${pend?`<div>لقيت <b>${pend.length}</b> أوردر جديد (تم استبعاد المتكرر) (${pend.filter(r=>r.line).length} فيهم لاين جاهز)</div><div class="row"><button class="p" data-a="go">تأكيد الإضافة</button><button data-a="nogo">إلغاء</button></div>`:'<div class="nm">الأعمدة: ST – Store – Line (اختياري)</div>'}</div>
   <div class="c"><b>تصدير</b><div class="row"><button data-a="exp">تحميل إكسل بالنتيجة</button></div></div>
   <div class="c"><b>يوم جديد</b><div class="nm">بيمسح كل الأوردرات عند الكل</div><div class="row"><button data-a="wipe" style="${wipe?'background:#dc2626;color:#fff':''}">${wipe?'اضغط تاني للتأكيد':'مسح كل الأوردرات'}</button></div></div>`;
+}
+function viewH(){
+  if(!historyLogs.length)return'<div class="em">السجل فارغ حالياً</div>';
+  let h=`<div class="c"><div class="row" style="justify-content:space-between;align-items:center"><b>سجل الأوردرات في الدوكات</b><button data-a="clearHist" style="background:#dc2626;color:#fff;font-size:12px;padding:6px 12px">مسح السجل بالكامل</button></div><table><thead><tr><th>ST</th><th>الفرع</th><th>الدوك</th><th>التاريخ والوقت</th></tr></thead><tbody>`;
+  historyLogs.forEach(lg=>{
+    h+=`<tr><td>${esc(lg.st)}</td><td>${esc(lg.store)}</td><td><b>${esc(lg.dock)}</b></td><td>${esc(lg.time)}</td></tr>`;
+  });
+  return h+'</tbody></table></div>';
 }
 function modal(oc){
   const o=byId(pick.id);if(!o)return'';
@@ -163,7 +205,19 @@ document.addEventListener('keydown', e=>{
 });
 
 document.addEventListener('click',async e=>{
-  const t=e.target.closest('button,[data-a],[data-select-role]');if(!t)return;const d=t.dataset;
+  const t=e.target.closest('button,[data-a],[data-select-role],[data-cleardock]');if(!t)return;const d=t.dataset;
+  
+  if(d.cleardock){
+    const ord = byId(d.cleardock);
+    if(ord){
+      const now = new Date().toLocaleString('ar-EG');
+      // حفظ السجل في قاعدة البيانات
+      histCol.add({ st: ord.st, store: ord.store, dock: ord.dock, time: now, t: Date.now() });
+      upd(ord.id, { status: 'left' });
+    }
+    return;
+  }
+
   if(d.selectRole){selRole=d.selectRole;authErr='';return render()}
   if(d.a==='backRole'){selRole=null;authErr='';return render()}
   if(d.a==='login'){return tryLogin()}
@@ -173,7 +227,12 @@ document.addEventListener('click',async e=>{
   if(d.go){q=d.go;$('#q').value=q;tab='o';fs='all';return render()}
   if(d.pl){pick.l=d.pl;return render()}
   if(d.ln){const i=pick.sel.indexOf(d.ln);i>=0?pick.sel.splice(i,1):pick.sel.push(d.ln);return render()}
-  if(d.dk){const id=pick.id;pick=null;return upd(id,{dock:d.dk,status:'ready'})}
+  if(d.dk){
+    const id=pick.id;
+    const dkVal=d.dk;
+    pick=null;
+    return upd(id,{dock:dkVal,status:'ready'});
+  }
   const o=byId(d.id);
   switch(d.a){
     case'line':pick={id:o.id,type:'line',l:LS()[0],sel:parseLines(o.line)};break;
@@ -186,6 +245,13 @@ document.addEventListener('click',async e=>{
     case'go':{const r=pend,b=Date.now();pend=null;for(let i=0;i<r.length;i+=400){const bt=firebase.firestore().batch();r.slice(i,i+400).forEach((x,j)=>bt.set(col.doc(),{st:x.st,store:x.store,line:x.line,dock:'',status:x.line?'lined':'new',cont:false,t:b+i+j}));bt.commit()}msg='تم رفع '+r.length+' أوردر جديد ✓';tab='o';break}
     case'nogo':pend=null;break;
     case'wipe':if(!wipe){wipe=true;setTimeout(()=>{wipe=false;render()},4000);break}wipe=false;for(let i=0;i<orders.length;i+=400){const bt=firebase.firestore().batch();orders.slice(i,i+400).forEach(x=>bt.delete(col.doc(x.id)));bt.commit()}msg='تم المسح';break;
+    case'clearHist':{
+      if(confirm('متأكد إنك عاوز تمسح سجل الدوكات بالكامل؟')){
+        historyLogs.forEach(lg=>{ histCol.doc(lg.id).delete(); });
+        msg='تم مسح السجل بنجاح';
+      }
+      break;
+    }
     case'exp':{const rows=[['ST','Store','Line','Dock','Status']].concat(orders.map(o=>[o.st,o.store,(o.cont?'استكمال ':'')+(o.line||''),o.dock||'',ST[o.status]]));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Sheet1');XLSX.writeFile(wb,'lines.xlsx');break}
   }
   render();
@@ -225,8 +291,21 @@ firebase.initializeApp(CFG);
 const fdb=firebase.firestore();
 fdb.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 col=fdb.collection('orders');
+histCol=fdb.collection('dock_history');
+
 let started=false;
-function start(){if(started)return;started=true;
-  col.onSnapshot({includeMetadataChanges:true},s=>{orders=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>(a.t||0)-(b.t||0));pending=s.metadata.hasPendingWrites;loaded=true;render()},e=>{msg='خطأ: '+e.code;loaded=true;render()})}
+function start(){
+  if(started)return;started=true;
+  col.onSnapshot({includeMetadataChanges:true},s=>{
+    orders=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>(a.t||0)-(b.t||0));
+    pending=s.metadata.hasPendingWrites;loaded=true;render();
+  },e=>{msg='خطأ: '+e.code;loaded=true;render()});
+
+  histCol.orderBy('t','desc').onSnapshot(s=>{
+    historyLogs=s.docs.map(d=>Object.assign({id:d.id},d.data()));
+    render();
+  },e=>{});
+}
+
 firebase.auth().onAuthStateChanged(u=>{if(u)start();else firebase.auth().signInAnonymously().catch(e=>{msg='تسجيل الدخول فشل: '+e.code;loaded=true;render()});});
 </script></body></html>
