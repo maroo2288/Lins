@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#2563eb">
+<title>تسكين اللاينات</title>
+<style>
+:root{color-scheme:light dark;--bg:#f4f6f9;--cd:#fff;--tx:#14181f;--mu:#667085;--bd:#dfe3e9;--pr:#2563eb;--prt:#fff;--ok:#dcfce7;--okt:#166534;--wa:#fef3c7;--wat:#92400e;--bl:#dbeafe;--blt:#1e40af;--gr:#e5e7eb}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--cd:#1a1f29;--tx:#eef1f5;--mu:#98a2b3;--bd:#2c3340;--pr:#3b82f6;--ok:#12351f;--okt:#86efac;--wa:#3b2a0a;--wat:#fcd34d;--bl:#172554;--blt:#93c5fd;--gr:#2c3340}}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;padding-bottom:60px}
+.top{position:sticky;top:0;background:var(--bg);padding:8px 10px;z-index:5;border-bottom:1px solid var(--bd)}
+.st{display:flex;gap:6px;flex-wrap:wrap;font-size:12px;margin-bottom:6px}.st span{background:var(--cd);border:1px solid var(--bd);border-radius:8px;padding:3px 8px}
+.tabs{display:flex;gap:6px}.tabs button{flex:1}
+button{font:inherit;border:1px solid var(--bd);background:var(--cd);color:var(--tx);border-radius:10px;padding:8px 10px}
+button.on,button.p{background:var(--pr);color:var(--prt);border-color:var(--pr)}
+input[type=search]{width:100%;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);margin:8px 0 6px}
+.chips{display:flex;gap:5px;overflow-x:auto;padding-bottom:4px}.chips button{padding:4px 10px;white-space:nowrap;font-size:13px}
+.w{padding:10px}.c{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:10px;margin-bottom:8px}
+.r1{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:16px}.bd{font-size:11px;background:var(--gr);border-radius:6px;padding:1px 7px}
+.s-new .bd:nth-of-type(1){background:var(--wa);color:var(--wat)}.s-lined .bd:nth-of-type(1){background:var(--bl);color:var(--blt)}.s-ready .bd:nth-of-type(1){background:var(--ok);color:var(--okt)}
+.nm{margin:3px 0;color:var(--mu)}.ln{margin:3px 0}.ac{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.ac button{font-size:13px;padding:6px 10px}
+.g{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}.g button{padding:8px 0;font-size:14px;line-height:1.1}.g small{display:block;font-size:9px;color:var(--mu)}
+.g .oc{background:var(--wa);color:var(--wat)}.g .fr{background:var(--ok);color:var(--okt)}.g .sl{background:var(--pr);color:var(--prt)}.g button:disabled{opacity:.45}
+.m{position:fixed;inset:0;background:#0007;z-index:20;display:flex;align-items:flex-end}.sh{background:var(--bg);width:100%;max-height:85%;overflow:auto;border-radius:16px 16px 0 0;padding:12px}
+h3{margin:10px 0 6px;font-size:15px}.em{text-align:center;color:var(--mu);padding:30px}.row{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}
+.rl{display:grid;gap:12px;padding:30px 20px}.rl button{padding:22px;font-size:20px}
+</style></head><body>
+<div class="top"><div class="st" id="st"></div>
+<div class="tabs" id="tabs"></div>
+<div id="ctl"><input type="search" id="q" placeholder="آخر 3 أرقام من ST أو اسم الفرع…" autocomplete="off">
+<div class="chips" id="fs"></div><div class="chips" id="fa"></div></div></div>
+<div class="w" id="main"><div class="em">جاري التحميل…</div></div><div id="md"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ====== حط بيانات مشروع Firebase بتاعك هنا ====== */
+const CFG={apiKey:"AIzaSyBDt-KXEYcFoiLwx3exGxEaDZRlOvtdYoQ",authDomain:"lins-a9f3b.firebaseapp.com",projectId:"lins-a9f3b",storageBucket:"lins-a9f3b.firebasestorage.app",messagingSenderId:"837132863048",appId:"1:837132863048:web:5b2af965a28004440c3a7d"};
+/* ================================================= */
+const $=s=>document.querySelector(s);
+let col,orders=[],tab='o',q='',fs='act',fa='all',pick=null,pend=null,msg='',wipe=false,loaded=false,pending=false,role=null;
+try{role=localStorage.getItem('role')}catch(e){}
+const ST={new:'جديد',lined:'متسكن',ready:'جاهز بدوك',left:'خرج'};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const key=o=>(o.st+'|'+o.store).toLowerCase().replace(/\s+/g,' ');
+const LS=()=>role==='M'?['A','B']:[role];
+function parseLines(s){const out=[];String(s||'').toUpperCase().replace(/(\d+(?:\s*\+\s*\d+)*)\s*([AB])/g,(m,n,l)=>{n.split('+').forEach(x=>out.push(parseInt(x,10)+l));return m});return out}
+function fmt(sel){const g={A:[],B:[]};sel.forEach(x=>g[x.slice(-1)].push(parseInt(x,10)));return['A','B'].filter(l=>g[l].length).map(l=>g[l].sort((a,b)=>a-b).join('+')+l).join(' + ')}
+function occ(){const m={};orders.forEach(o=>{if(o.status==='lined'||o.status==='ready')parseLines(o.line).forEach(l=>m[l]=o)});return m}
+const byId=id=>orders.find(o=>o.id===id);
+const upd=(id,d)=>{const o=byId(id);if(o)Object.assign(o,d);col.doc(id).update(d).catch(()=>{msg='تعذّر الحفظ';render()});render()};
+const vis=o=>true;
+const ALL=['A','B'];
+const owner=o=>{const L=new Set(parseLines(o.line).map(l=>l.slice(-1)));if(o.dock)L.add(o.dock[0]);return[...L]};
+const can=o=>role==='M'||owner(o).every(l=>l===role);
+
+function render(){
+  if(!role){$('#ctl').style.display='none';$('#tabs').innerHTML='';$('#st').innerHTML='';$('#main').innerHTML='<div class="rl"><b style="text-align:center;font-size:18px">إنت مين؟</b><button data-role="M">المشرف (رفع الإكسل)</button><button data-role="A">مشرف لاينات A</button><button data-role="B">مشرف لاينات B</button></div>';return}
+  const oc=occ(),V=orders.filter(vis),n=s=>V.filter(o=>o.status===s).length;
+  const used=l=>Object.keys(oc).filter(k=>k.endsWith(l)).length;
+  const net=!navigator.onLine?'🔴 أوفلاين (الشغل محفوظ)':pending?'⏳ بيتزامن':'🟢 متصل';
+  $('#st').innerHTML=`<span>${net}</span><span>${{M:'المشرف',A:'مشرف A',B:'مشرف B'}[role]}</span><span>جديد ${n('new')}</span><span>متسكن ${n('lined')}</span><span>جاهز ${n('ready')}</span>`+ALL.map(l=>`<span>${l} فاضي ${55-used(l)}</span>`).join('')+'<span data-role="" style="cursor:pointer">تغيير ⟲</span>';
+  $('#tabs').innerHTML=[['o','الأوردرات'],['l','الخطوط']].concat(role==='M'?[['u','رفع / إدارة']]:[]).map(([k,t])=>`<button data-t="${k}" class="${tab===k?'on':''}">${t}</button>`).join('');
+  $('#ctl').style.display=tab==='o'?'':'none';
+  $('#fs').innerHTML=[['act','نشط'],['new','جديد'],['lined','متسكن'],['ready','جاهز'],['left','خرج'],['all','الكل']].map(([k,t])=>`<button data-fs="${k}" class="${fs===k?'on':''}">${t}</button>`).join('');
+  $('#fa').innerHTML=[['all','كل اللاينات'],['A','A'],['B','B']].map(([k,t])=>`<button data-fa="${k}" class="${fa===k?'on':''}">${t}</button>`).join('');
+  $('#main').innerHTML=(msg?`<div class="c">${esc(msg)}</div>`:'')+(!loaded?'<div class="em">جاري التحميل…</div>':tab==='o'?viewO():tab==='l'?viewL(oc):viewU());
+  $('#md').innerHTML=pick?modal(oc):'';
+}
+function viewO(){
+  const t=q.trim().toLowerCase();
+  let L=orders.filter(vis).filter(o=>fs==='all'||(fs==='act'?o.status!=='left':o.status===fs));
+  if(fa!=='all')L=L.filter(o=>parseLines(o.line).some(l=>l.endsWith(fa)));
+  if(t)L=L.filter(o=>o.st.toLowerCase().includes(t)||o.store.toLowerCase().includes(t));
+  if(!L.length)return'<div class="em">مفيش أوردرات</div>';
+  return L.slice(0,150).map(card).join('')+(L.length>150?'<div class="em">اكتب في البحث لتضييق النتائج</div>':'');
+}
+function card(o){
+  const dup=orders.filter(x=>key(x)===key(o)).length,b=(a,t,p)=>`<button data-a="${a}" data-id="${o.id}" ${p?'class="p"':''}>${t}</button>`;
+  let a='';
+  if(!can(o))a=`<span class="nm">🔒 شغل مشرف ${owner(o).join('+')}</span>`;
+  else{
+  if(o.status==='new')a=b('line','تسكين في لاين',1);
+  if(o.status==='lined')a=b('dock','اكتمل + دوك',1)+b('line','تعديل اللاين')+b('cont','➕ استكمال');
+  if(o.status==='ready')a=b('left','راح الدوك (فضّي اللاين)',1);
+  if(o.status!=='new')a+=b('undo','تراجع');}
+  return`<div class="c s-${o.status}"><div class="r1"><b>${esc(o.st)}</b><span class="bd">${ST[o.status]}</span>${o.cont?'<span class="bd" style="background:var(--wa);color:var(--wat)">استكمال</span>':''}${dup>1?`<span class="bd">×${dup}</span>`:''}</div><div class="nm">${esc(o.store)}</div>${o.line?`<div class="ln">لاين: <b>${esc(o.line)}</b>${o.dock?` · دوك: <b>${esc(o.dock)}</b>`:''}</div>`:''}<div class="ac">${a}</div></div>`;
+}
+function viewL(oc){
+  return ALL.map(l=>{let h=`<h3>لاينات ${l}</h3><div class="g">`;
+    for(let i=1;i<=55;i++){const o=oc[i+l];h+=o?`<button class="oc" data-go="${esc(o.st)}">${i}<small>${esc(o.st.slice(-3))}</small></button>`:`<button class="fr" disabled>${i}</button>`}
+    return h+'</div>'}).join('');
+}
+function viewU(){
+  return`<div class="c"><b>رفع إكسل جديد</b><div class="row"><input type="file" id="f" accept=".xlsx,.xls,.csv"></div>${pend?`<div>لقيت <b>${pend.length}</b> أوردر (${pend.filter(r=>r.line).length} فيهم لاين جاهز)</div><div class="row"><button class="p" data-a="go">تأكيد الإضافة</button><button data-a="nogo">إلغاء</button></div>`:'<div class="nm">الأعمدة: ST – Store – Line (اختياري)</div>'}</div>
+  <div class="c"><b>تصدير</b><div class="row"><button data-a="exp">تحميل إكسل بالنتيجة</button></div></div>
+  <div class="c"><b>يوم جديد</b><div class="nm">بيمسح كل الأوردرات عند الكل</div><div class="row"><button data-a="wipe" style="${wipe?'background:#dc2626;color:#fff':''}">${wipe?'اضغط تاني للتأكيد':'مسح كل الأوردرات'}</button></div></div>`;
+}
+function modal(oc){
+  const o=byId(pick.id);if(!o)return'';
+  if(pick.type==='dock')return`<div class="m" data-a="close"><div class="sh" onclick="event.stopPropagation()"><b>${esc(o.st)} – اختار الدوك</b>${LS().map(l=>`<h3>دوك ${l}</h3><div class="g">${Array.from({length:10},(_,i)=>`<button data-dk="${l}${i+1}" class="fr">${l}${i+1}</button>`).join('')}</div>`).join('')}</div></div>`;
+  const l=pick.l;let h='';
+  for(let i=1;i<=55;i++){const k=i+l,x=oc[k],mine=x&&x.id===o.id,sel=pick.sel.includes(k);
+    h+=`<button data-ln="${k}" class="${sel?'sl':x&&!mine?'oc':'fr'}" ${x&&!mine?'disabled':''}>${i}${x&&!mine?`<small>${esc(x.st.slice(-3))}</small>`:''}</button>`}
+  return`<div class="m" data-a="close"><div class="sh" onclick="event.stopPropagation()"><b>${esc(o.st)} – ${esc(o.store)}</b><div class="row">${role==='M'?`<button data-pl="A" class="${l==='A'?'on':''}">A</button><button data-pl="B" class="${l==='B'?'on':''}">B</button>`:''}<span class="nm">المختار: ${esc(fmt(pick.sel))||'—'}</span></div><div class="g">${h}</div><div class="row"><button class="p" data-a="ok" ${pick.sel.length?'':'disabled'}>تأكيد</button><button data-a="close">إلغاء</button></div></div></div>`;
+}
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('button,[data-a],[data-role]');if(!t)return;const d=t.dataset;
+  if('role' in d){role=d.role||null;try{role?localStorage.setItem('role',role):localStorage.removeItem('role')}catch(x){}tab='o';return render()}
+  if(d.t){tab=d.t;msg='';return render()}
+  if(d.fs){fs=d.fs;return render()}if(d.fa){fa=d.fa;return render()}
+  if(d.go){q=d.go;$('#q').value=q;tab='o';fs='all';return render()}
+  if(d.pl){pick.l=d.pl;return render()}
+  if(d.ln){const i=pick.sel.indexOf(d.ln);i>=0?pick.sel.splice(i,1):pick.sel.push(d.ln);return render()}
+  if(d.dk){const id=pick.id;pick=null;return upd(id,{dock:d.dk,status:'ready'})}
+  const o=byId(d.id);
+  if(o&&!can(o))return;
+  switch(d.a){
+    case'line':pick={id:o.id,type:'line',l:LS()[0],sel:parseLines(o.line)};break;
+    case'dock':pick={id:o.id,type:'dock'};break;
+    case'close':pick=null;break;
+    case'ok':{const o2=byId(pick.id),oth=orders.filter(x=>x.id!==o2.id&&key(x)===key(o2)&&x.line).length,id=pick.id,sel=pick.sel;pick=null;return upd(id,{line:fmt(sel),status:'lined',cont:!!(o2.cont||oth)})}
+    case'left':return upd(o.id,{status:'left'});
+    case'undo':return upd(o.id,o.status==='lined'?{status:'new',line:'',dock:''}:o.status==='ready'?{status:'lined',dock:''}:{status:'ready'});
+    case'cont':col.add({st:o.st,store:o.store,line:'',dock:'',status:'new',cont:true,t:Date.now()});break;
+    case'go':{const r=pend,b=Date.now();pend=null;for(let i=0;i<r.length;i+=400){const bt=firebase.firestore().batch();r.slice(i,i+400).forEach((x,j)=>bt.set(col.doc(),{st:x.st,store:x.store,line:x.line,dock:'',status:x.line?'lined':'new',cont:false,t:b+i+j}));bt.commit()}msg='تم رفع '+r.length+' أوردر ✓';tab='o';break}
+    case'nogo':pend=null;break;
+    case'wipe':if(!wipe){wipe=true;setTimeout(()=>{wipe=false;render()},4000);break}wipe=false;for(let i=0;i<orders.length;i+=400){const bt=firebase.firestore().batch();orders.slice(i,i+400).forEach(x=>bt.delete(col.doc(x.id)));bt.commit()}msg='تم المسح';break;
+    case'exp':{const rows=[['ST','Store','Line','Dock','Status']].concat(orders.map(o=>[o.st,o.store,(o.cont?'استكمال ':'')+(o.line||''),o.dock||'',ST[o.status]]));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Sheet1');XLSX.writeFile(wb,'lines.xlsx');break}
+  }
+  render();
+});
+document.addEventListener('change',async e=>{
+  if(e.target.id!=='f'||!e.target.files[0])return;
+  try{const wb=XLSX.read(await e.target.files[0].arrayBuffer()),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+    const hi=rows.findIndex(r=>r.some(c=>/^st$/i.test(String(c).trim())));const ci={st:0,store:1,line:2};
+    if(hi>=0)rows[hi].forEach((c,i)=>{const s=String(c).trim().toLowerCase();if(s in ci)ci[s]=i});
+    pend=rows.slice(hi+1).map(r=>({st:String(r[ci.st]).trim(),store:String(r[ci.store]).trim(),line:String(r[ci.line]||'').trim()})).filter(r=>r.st&&r.store);msg=pend.length?'':'الملف فاضي أو الأعمدة مش واضحة'}catch(x){msg='مش قادر أقرأ الملف'}
+  render();
+});
+$('#q').addEventListener('input',e=>{q=e.target.value;render()});
+addEventListener('online',render);addEventListener('offline',render);
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+render();
+firebase.initializeApp(CFG);
+const fdb=firebase.firestore();
+fdb.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+col=fdb.collection('orders');
+let started=false;
+function start(){if(started)return;started=true;
+  col.onSnapshot({includeMetadataChanges:true},s=>{orders=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>(a.t||0)-(b.t||0));pending=s.metadata.hasPendingWrites;loaded=true;render()},e=>{msg='خطأ: '+e.code;loaded=true;render()})}
+firebase.auth().onAuthStateChanged(u=>{if(u)start();else firebase.auth().signInAnonymously().catch(e=>{msg='تسجيل الدخول فشل: '+e.code;loaded=true;render()})});
+</script></body></html>
